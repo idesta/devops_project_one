@@ -1,0 +1,21 @@
+<!-- frontend-register/index.html -->
+<!doctype html>
+<html>
+<body>
+<h1>Register</h1>
+<form id="f">
+  <input name="username" placeholder="username" /><br/>
+  <input name="password" type="password" placeholder="password"/><br/>
+  <button type="submit">Register</button>
+</form>
+<script>
+document.getElementById('f').onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target)
+  const body = { username: fd.get('username'), password: fd.get('password') }
+  const r = await fetch('/api/register', {method:'POST', body:JSON.stringify(body), headers:{'Content-Type':'application/json'}})
+  alert('status:'+r.status)
+}
+</script>
+</body>
+</html>
