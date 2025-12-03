@@ -1,0 +1,79 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: docker.io
+      IMAGE_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push API image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./api
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/api:latest
+
+    - name: Build and push frontend-register
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend-register
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/frontend-register:latest
+
+    - name: Build and push frontend-login
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend-login
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/frontend-login:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: '1.27.3'  # choose desired kubectl version
+
+      - name: Restore kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 --decode > kubeconfig
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl get nodes
+      - name: Set image for deployments
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl -n myapp set image deployment/api api=${{ secrets.DOCKERHUB_USERNAME }}/api:latest || true
+          kubectl -n myapp set image deployment/frontend-register nginx=${{ secrets.DOCKERHUB_USERNAME }}/frontend-register:latest || true
+          kubectl -n myapp set image deployment/frontend-login nginx=${{ secrets.DOCKERHUB_USERNAME }}/frontend-login:latest || true
+      - name: Apply manifests
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl apply -f infra/k8s/namespace.yaml
+          kubectl apply -f infra/k8s/secrets-configmaps.yaml
+          kubectl apply -f infra/k8s/postgres-deployment.yaml
+          kubectl apply -f infra/k8s/api-deployment.yaml
+          kubectl apply -f infra/k8s/frontend-deployment.yaml
+          kubectl apply -f infra/k8s/ingress.yaml
