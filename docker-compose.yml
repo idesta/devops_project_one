@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apassword
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_DSN: postgres://appuser:apassword@postgres:5432/appdb?sslmode=disable
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+
+  frontend-register:
+    build: ./frontend-register
+    ports:
+      - "8081:80"
+
+  frontend-login:
+    build: ./frontend-login
+    ports:
+      - "8082:80"
+
+volumes:
+  pgdata:
